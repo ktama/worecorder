@@ -18,7 +18,19 @@
 
   let records: RecordEntry[] = [];
   let selectedDate = new Date().toISOString().substring(0, 10);
+  let projectFilter = '';
   let currentId = 0;
+
+  interface EditEntry {
+    id: number;
+    projectId: string;
+    projectName: string;
+    category: string;
+    task: string;
+    start: string;
+    end: string;
+  }
+  let editing: EditEntry | null = null;
 
   onMount(() => {
     const stored = localStorage.getItem('records');
@@ -63,6 +75,41 @@
     }
   }
 
+  function beginEdit(r: RecordEntry) {
+    editing = {
+      id: r.id,
+      projectId: r.projectId,
+      projectName: r.projectName,
+      category: r.category,
+      task: r.task,
+      start: r.start.slice(0, 16),
+      end: r.end ? r.end.slice(0, 16) : '',
+    };
+  }
+
+  function saveEdit() {
+    if (!editing) return;
+    const idx = records.findIndex((r) => r.id === editing!.id);
+    if (idx !== -1) {
+      records[idx] = {
+        id: editing.id,
+        projectId: editing.projectId,
+        projectName: editing.projectName,
+        category: editing.category,
+        task: editing.task,
+        start: new Date(editing.start).toISOString(),
+        end: editing.end ? new Date(editing.end).toISOString() : undefined,
+      };
+      records = [...records];
+      save();
+    }
+    editing = null;
+  }
+
+  function cancelEdit() {
+    editing = null;
+  }
+
   function duration(start: string, end?: string) {
     if (!end) return 0;
     return new Date(end).getTime() - new Date(start).getTime();
@@ -98,8 +145,12 @@
     return `${h}h ${m}m`;
   }
 
-  $: dailyRecords = records.filter((r) =>
-    r.start.startsWith(selectedDate)
+  $: dailyRecords = records.filter(
+    (r) =>
+      r.start.startsWith(selectedDate) &&
+      (!projectFilter ||
+        r.projectId.includes(projectFilter) ||
+        r.projectName.includes(projectFilter))
   );
   $: totals = computeTotals(dailyRecords);
 </script>
@@ -123,6 +174,13 @@
     </label>
   </div>
 
+  <div class="filter">
+    <input
+      placeholder="Filter by project"
+      bind:value={projectFilter}
+    />
+  </div>
+
   <h2>Records</h2>
   <table>
     <thead>
@@ -132,17 +190,42 @@
         <th>Task</th>
         <th>Start</th>
         <th>End</th>
+        <th></th>
       </tr>
     </thead>
     <tbody>
       {#each dailyRecords as r}
-        <tr>
-          <td>{r.projectName} ({r.projectId})</td>
-          <td>{r.category}</td>
-          <td>{r.task}</td>
-          <td>{new Date(r.start).toLocaleTimeString()}</td>
-          <td>{r.end ? new Date(r.end).toLocaleTimeString() : '-'}</td>
-        </tr>
+        {#if editing && editing.id === r.id}
+          <tr>
+            <td>
+              <input bind:value={editing.projectName} />
+              <div class="sub">
+                <input bind:value={editing.projectId} />
+              </div>
+            </td>
+            <td><input bind:value={editing.category} /></td>
+            <td><input bind:value={editing.task} /></td>
+            <td>
+              <input type="datetime-local" bind:value={editing.start} />
+            </td>
+            <td>
+              <input type="datetime-local" bind:value={editing.end} />
+            </td>
+            <td>
+              <button on:click={saveEdit}>Save</button>
+              <button on:click={cancelEdit}>Cancel</button>
+            </td>
+          </tr>
+        {:else}
+          <tr>
+            <td>{r.projectName} ({r.projectId})</td>
+            <td>{r.category}</td>
+            <td>{r.task}</td>
+            <td>{new Date(r.start).toLocaleTimeString()}</td>
+            <td>{r.end ? new Date(r.end).toLocaleTimeString() : '-'}</td>
+            <td><button on:click={() => beginEdit(r)}>Edit</button></td>
+          </tr>
+        {/if}
       {/each}
     </tbody>
   </table>
@@ -174,5 +257,12 @@
   }
   .inputs input {
     margin-right: 0.5em;
+  }
+  .filter {
+    margin: 0.5em 0;
+  }
+  .sub input {
+    margin-top: 0.25em;
+    width: 100%;
   }
 </style>
