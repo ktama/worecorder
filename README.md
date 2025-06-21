@@ -33,5 +33,6 @@ npm run tauri
 ## ドキュメント
 
 追加仕様書は[docs/WORK_TIME_TRACKING_SPEC_JP.md](docs/WORK_TIME_TRACKING_SPEC_JP.md)にまとめています。
+開発タスク一覧は[docs/WORK_TIME_TASKS_JP.md](docs/WORK_TIME_TASKS_JP.md)から確認できます。
 
 
