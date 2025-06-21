@@ -1,5 +1,7 @@
 <script lang="ts">
   import { onMount } from 'svelte';
+  import { open } from '@tauri-apps/api/dialog';
+  import { invoke } from '@tauri-apps/api/tauri';
 
   interface RecordEntry {
     id: number;
@@ -20,6 +22,7 @@
   let selectedDate = new Date().toISOString().substring(0, 10);
   let projectFilter = '';
   let currentId = 0;
+  let saveDir = '';
 
   interface EditEntry {
     id: number;
@@ -32,17 +35,44 @@
   }
   let editing: EditEntry | null = null;
 
-  onMount(() => {
+  interface TotalEntry {
+    projectId: string;
+    projectName: string;
+    category: string;
+    ms: number;
+    tasks: { name: string; ms: number }[];
+  }
+
+  onMount(async () => {
     const stored = localStorage.getItem('records');
     if (stored) {
       records = JSON.parse(stored);
       currentId =
         records.reduce((max, r) => (r.id > max ? r.id : max), 0) + 1;
     }
+    const dir = localStorage.getItem('saveDir');
+    if (dir) {
+      saveDir = dir;
+      try {
+        const loaded = await invoke<string>('load_records', { path: `${saveDir}/records.json` });
+        if (loaded) {
+          records = JSON.parse(loaded);
+          currentId =
+            records.reduce((max, r) => (r.id > max ? r.id : max), 0) + 1;
+        }
+      } catch (e) {
+        console.error(e);
+      }
+    }
   });
 
   function save() {
     localStorage.setItem('records', JSON.stringify(records));
+    if (saveDir) {
+      invoke('save_records', {
+        req: { path: `${saveDir}/records.json`, data: JSON.stringify(records) }
+      }).catch((e) => console.error(e));
+    }
   }
 
   function startRecord() {
@@ -72,6 +102,23 @@
       ongoing.end = now;
       records = [...records];
       save();
+    }
+  }
+
+  async function chooseDirectory() {
+    const selected = await open({ directory: true });
+    if (typeof selected === 'string') {
+      saveDir = selected;
+      localStorage.setItem('saveDir', saveDir);
+      // load existing file if any
+      try {
+        const loaded = await invoke<string>('load_records', { path: `${saveDir}/records.json` });
+        records = JSON.parse(loaded);
+        currentId = records.reduce((m, r) => (r.id > m ? r.id : m), 0) + 1;
+        save();
+      } catch (e) {
+        console.error(e);
+      }
     }
   }
 
@@ -115,27 +162,38 @@
     return new Date(end).getTime() - new Date(start).getTime();
   }
 
-  function computeTotals(recs: RecordEntry[]) {
+  function computeTotals(recs: RecordEntry[]): TotalEntry[] {
     const map = new Map<
       string,
-      { projectId: string; projectName: string; category: string; ms: number }
+      { projectId: string; projectName: string; category: string; ms: number; tasks: Map<string, number> }
     >();
     for (const r of recs) {
       if (!r.end) continue;
       const key = `${r.projectId}|${r.category}`;
       const ms = duration(r.start, r.end);
       if (map.has(key)) {
-        map.get(key)!.ms += ms;
+        const entry = map.get(key)!;
+        entry.ms += ms;
+        entry.tasks.set(r.task, (entry.tasks.get(r.task) || 0) + ms);
       } else {
+        const t = new Map<string, number>();
+        t.set(r.task, ms);
         map.set(key, {
           projectId: r.projectId,
           projectName: r.projectName,
           category: r.category,
           ms,
+          tasks: t,
         });
       }
     }
-    return Array.from(map.values());
+    return Array.from(map.values()).map((v) => ({
+      projectId: v.projectId,
+      projectName: v.projectName,
+      category: v.category,
+      ms: v.ms,
+      tasks: Array.from(v.tasks.entries()).map(([name, ms]) => ({ name, ms })),
+    }));
   }
 
   function formatDuration(ms: number) {
@@ -157,6 +215,13 @@
 
 <main>
   <h1>Work Time Tracker</h1>
+
+  <div class="save-dir">
+    <button on:click={chooseDirectory}>Choose Save Directory</button>
+    {#if saveDir}
+      <span class="path">{saveDir}</span>
+    {/if}
+  </div>
 
   <div class="inputs">
     <input bind:value={projectId} placeholder="Project ID" />
@@ -235,6 +300,10 @@
     {#each totals as t}
       <li>
         {t.projectId} ({t.projectName}) {t.category}: {formatDuration(t.ms)}
+        <br />
+        {t.tasks
+          .map((tk) => `${tk.name}(${formatDuration(tk.ms)})`)
+          .join('、')}
       </li>
     {/each}
   </ul>
@@ -260,6 +329,14 @@
   }
   .filter {
     margin: 0.5em 0;
+  }
+  .save-dir {
+    margin-bottom: 0.5em;
+  }
+  .save-dir .path {
+    margin-left: 0.5em;
+    font-size: 0.9em;
+    color: #555;
   }
   .sub input {
     margin-top: 0.25em;
