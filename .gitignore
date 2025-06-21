@@ -28,3 +28,4 @@ src-tauri/target/
 # Misc
 .DS_Store
 Thumbs.db
+package-lock.json
