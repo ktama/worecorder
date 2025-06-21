@@ -23,6 +23,7 @@
   let projectFilter = '';
   let currentId = 0;
   let saveDir = '';
+  let projectMap: Record<string, string> = {};
 
   interface EditEntry {
     id: number;
@@ -41,6 +42,25 @@
     category: string;
     ms: number;
     tasks: { name: string; ms: number }[];
+  }
+
+  function computeProjectMap() {
+    projectMap = {};
+    for (const r of records) {
+      projectMap[r.projectId] = r.projectName;
+    }
+  }
+
+  function onProjectIdInput() {
+    if (projectMap[projectId]) {
+      projectName = projectMap[projectId];
+    }
+  }
+
+  function onEditProjectIdInput() {
+    if (editing && projectMap[editing.projectId]) {
+      editing.projectName = projectMap[editing.projectId];
+    }
   }
 
   onMount(async () => {
@@ -64,6 +84,7 @@
         console.error(e);
       }
     }
+    computeProjectMap();
   });
 
   function save() {
@@ -88,10 +109,11 @@
         projectId,
         projectName,
         category,
-        task,
-        start: now,
-      },
+      task,
+      start: now,
+    },
     ];
+    computeProjectMap();
     save();
   }
 
@@ -115,6 +137,7 @@
         const loaded = await invoke<string>('load_records', { path: `${saveDir}/records.json` });
         records = JSON.parse(loaded);
         currentId = records.reduce((m, r) => (r.id > m ? r.id : m), 0) + 1;
+        computeProjectMap();
         save();
       } catch (e) {
         console.error(e);
@@ -148,6 +171,7 @@
         end: editing.end ? new Date(editing.end).toISOString() : undefined,
       };
       records = [...records];
+      computeProjectMap();
       save();
     }
     editing = null;
@@ -224,7 +248,7 @@
   </div>
 
   <div class="inputs">
-    <input bind:value={projectId} placeholder="Project ID" />
+    <input bind:value={projectId} placeholder="Project ID" on:input={onProjectIdInput} />
     <input bind:value={projectName} placeholder="Project Name" />
     <input bind:value={category} placeholder="Category" />
     <input bind:value={task} placeholder="Task" />
@@ -265,7 +289,7 @@
             <td>
               <input bind:value={editing.projectName} />
               <div class="sub">
-                <input bind:value={editing.projectId} />
+                <input bind:value={editing.projectId} on:input={onEditProjectIdInput} />
               </div>
             </td>
             <td><input bind:value={editing.category} /></td>
