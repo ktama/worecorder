@@ -29,3 +29,9 @@ npm run tauri
 - コードのフォーマットを統一し、わかりやすいコミットメッセージを書くこと。
 - 変更をプッシュする前に、フロントエンドと Tauri バックエンドの両方をテストすること。
 - プルリクエストは一つの論理的な更新に集中させること。
+
+## ドキュメント
+
+追加仕様書は[docs/WORK_TIME_TRACKING_SPEC_JP.md](docs/WORK_TIME_TRACKING_SPEC_JP.md)にまとめています。
+
+
